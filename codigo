@@ -1,0 +1,167 @@
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+// Configurações de WiFi
+const char *SSID = "Cova's House";
+const char *PASSWORD = "thesmiths666";  // Substitua pelo sua senha
+
+// Configurações de MQTT
+const char *BROKER_MQTT = "mqtt.eclipse.org";
+const int BROKER_PORT = 1883;
+const char *ID_MQTT = "fiware_thermometer001";
+const char *TOPIC_PUBLISH_TEMP = "/TEF/thermometer001/attrs/temperature";
+const char *TOPIC_PUBLISH_UMID = "/TEF/thermometer001/attrs/humidity";
+const char *TOPIC_PUBLISH_LDR = "/TEF/thermometer001/attrs/ldr";
+const char *TOPIC_PUBLISH_GAS = "/TEF/thermometer001/attrs/gas";
+
+// Configurações de Hardware
+#define PIN_LDR 32  // Pino do sensor LDR
+#define PIN_GAS_SENSOR A5  // Pino do sensor de gás
+#define PIN_RED_LED 10
+#define PIN_GREEN_LED 11
+#define PIN_BUZZER 12
+
+// Variáveis globais
+WiFiClient espClient;
+PubSubClient MQTT(espClient);
+unsigned long publishUpdate = 0;
+
+// Protótipos de funções
+void initWiFi();
+void initMQTT();
+void reconnectMQTT();
+void reconnectWiFi();
+void checkWiFIAndMQTT();
+void readGasSensor();
+float simularMedicaoTemperaturaCorporal();
+
+void initWiFi() {
+  Serial.print("Conectando com a rede: ");
+  Serial.println(SSID);
+  WiFi.begin(SSID, PASSWORD);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(100);
+    Serial.print(".");
+  }
+
+  Serial.println();
+  Serial.print("Conectado com sucesso: ");
+  Serial.println(SSID);
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+void initMQTT() {
+  MQTT.setServer(BROKER_MQTT, BROKER_PORT);
+}
+
+void reconnectMQTT() {
+  while (!MQTT.connected()) {
+    Serial.print("Tentando conectar com o Broker MQTT: ");
+    Serial.println(BROKER_MQTT);
+
+    if (MQTT.connect(ID_MQTT)) {
+      Serial.println("Conectado ao broker MQTT!");
+    } else {
+      Serial.println("Falha na conexão com MQTT. Tentando novamente em 2 segundos.");
+      delay(2000);
+    }
+  }
+}
+
+void checkWiFIAndMQTT() {
+  if (WiFi.status() != WL_CONNECTED) reconnectWiFi();
+  if (!MQTT.connected()) reconnectMQTT();
+}
+
+void reconnectWiFi(void) {
+  if (WiFi.status() == WL_CONNECTED)
+    return;
+
+  WiFi.begin(SSID, PASSWORD); // Conecta na rede WI-FI
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(100);
+    Serial.print(".");
+  }
+
+  Serial.println();
+  Serial.print("Wifi conectado com sucesso");
+  Serial.print(SSID);
+  Serial.println("IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+void readGasSensor() {
+  int valorSensorGas = analogRead(PIN_GAS_SENSOR);
+  Serial.print("Gas Sensor: ");
+  Serial.println(valorSensorGas);
+
+  // Valor de limite do sensor de gás
+  int valorLimiteSensorGas = 100;
+
+  // Checando para ver se não atingiu o limite
+  if (valorSensorGas > valorLimiteSensorGas) {
+    digitalWrite(PIN_RED_LED, HIGH);
+    digitalWrite(PIN_GREEN_LED, LOW);
+    tone(PIN_BUZZER, 2500, 200);
+  } else {
+    digitalWrite(PIN_RED_LED, LOW);
+    digitalWrite(PIN_GREEN_LED, HIGH);
+    noTone(PIN_BUZZER);
+  }
+
+  // Publicar o valor do sensor de gás no MQTT
+  char msgBuffer4[6]; // Ajuste o tamanho do buffer conforme necessário
+  dtostrf(valorSensorGas, 5, 0, msgBuffer4);
+  MQTT.publish(TOPIC_PUBLISH_GAS, msgBuffer4);
+}
+
+float simularMedicaoTemperaturaCorporal() {
+  // Simulação de temperatura corporal entre 36.0 e 38.0 graus Celsius
+  return random(3600, 3800) / 100.0;
+}
+
+void setup() {
+  Serial.begin(115200);
+  initWiFi();
+  initMQTT();
+  pinMode(PIN_RED_LED, OUTPUT);
+  pinMode(PIN_GREEN_LED, OUTPUT);
+  pinMode(PIN_BUZZER, OUTPUT);
+  pinMode(PIN_GAS_SENSOR, INPUT);
+}
+
+void loop() {
+  checkWiFIAndMQTT();
+  MQTT.loop();
+  readGasSensor(); // Ler sensor de gás
+  if ((millis() - publishUpdate) >= 2000) {
+    publishUpdate = millis();
+
+    // temperatura
+    char msgBuffer1[5];
+    float sensorValue1 = simularMedicaoTemperaturaCorporal();
+    Serial.print("Temperature: ");
+    Serial.println(sensorValue1);
+    dtostrf(sensorValue1, 4, 2, msgBuffer1);
+    MQTT.publish(TOPIC_PUBLISH_TEMP, msgBuffer1);
+
+    // umidade
+    char msgBuffer2[5];
+    float sensorValue2 = random(4000, 6000) / 100.0; // Simulação de umidade entre 40% e 60%
+    Serial.print("Humidity: ");
+    Serial.println(sensorValue2);
+    dtostrf(sensorValue2, 4, 2, msgBuffer2);
+    MQTT.publish(TOPIC_PUBLISH_UMID, msgBuffer2);
+
+    // leitura do LDR
+    char msgBuffer3[7];  // Ajuste o tamanho do buffer conforme necessário
+    int sensorValue3 = analogRead(PIN_LDR);
+    Serial.print("LDR: ");
+    Serial.println(sensorValue3);
+    dtostrf(sensorValue3, 6, 2, msgBuffer3);
+    MQTT.publish(TOPIC_PUBLISH_LDR, msgBuffer3);
+  }
+}
