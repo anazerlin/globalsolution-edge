@@ -1,6 +1,9 @@
 # globalsolution-edge
 
 
+**https://wokwi.com/projects/382191888917294081**
+
+
 O problema de saúde abordado neste projeto fictício é a monitorização da temperatura corporal de um paciente, simulando um dispositivo IoT que coleta dados relevantes para a saúde. Em situações reais, a monitorização da temperatura corporal é fundamental para detectar febres e variações significativas que podem indicar problemas de saúde.
 
 A solução proposta é um sistema que utiliza um ESP32 simulado no Wokwi, conectado a sensores fictícios de temperatura (simulado), umidade, luminosidade (LDR), e um sensor de gás. Esses dados são publicados em um servidor MQTT simulado para possibilitar a monitorização remota. Além disso, LEDs e um buzzer são utilizados para indicar situações críticas, como a detecção de altos níveis de gás.
